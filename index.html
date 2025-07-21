@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Precios Internacionales a Pesos Argentinos</title>
+    <!-- Incluye Tailwind CSS para estilos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Fuente Inter para una apariencia empresarial */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Fondo gris claro */
+        }
+        /* Estilos personalizados para el contenedor principal */
+        .container-card {
+            background-color: #ffffff;
+            border-radius: 1rem; /* Bordes redondeados */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Sombra sutil */
+            padding: 2.5rem;
+            max-width: 32rem; /* Ancho máximo para mejor legibilidad */
+            margin: 2rem auto; /* Centrado horizontal y margen superior */
+        }
+        /* Estilos para los campos de entrada y botones */
+        input[type="number"] {
+            border: 1px solid #d1d5db; /* Borde gris */
+            border-radius: 0.5rem; /* Bordes redondeados */
+            padding: 0.75rem 1rem;
+            width: 100%;
+            font-size: 1rem;
+        }
+        button {
+            background-color: #2563eb; /* Azul primario */
+            color: #ffffff;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        button:hover {
+            background-color: #1d4ed8; /* Azul más oscuro al pasar el ratón */
+        }
+        /* Estilos para la sección de resultados */
+        .result-section {
+            border-top: 1px solid #e5e7eb; /* Línea divisoria */
+            padding-top: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            font-size: 1.125rem;
+            color: #374151; /* Texto gris oscuro */
+        }
+        .result-item strong {
+            color: #1f2937; /* Texto más oscuro para valores importantes */
+        }
+        .total-result {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #047857; /* Verde para el total */
+            padding-top: 1rem;
+            border-top: 1px dashed #d1d5db; /* Línea de puntos para el total */
+            margin-top: 1rem;
+        }
+        .disclaimer {
+            font-size: 0.875rem;
+            color: #6b7280; /* Texto gris para el descargo de responsabilidad */
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+        .error-message {
+            color: #dc2626; /* Rojo para mensajes de error */
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-card">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Calculadora de Precios de Importación (Argentina)</h1>
+
+        <div class="mb-5">
+            <label for="usdPrice" class="block text-gray-700 text-sm font-semibold mb-2">Precio del Producto en USD:</label>
+            <input type="number" id="usdPrice" placeholder="Ingrese el precio en USD" min="0.01" step="0.01" class="focus:ring-blue-500 focus:border-blue-500">
+            <p id="errorMessage" class="error-message hidden">Por favor, ingrese un precio válido.</p>
+        </div>
+
+        <button id="calculateBtn" class="w-full">Calcular Precio Final</button>
+
+        <div id="results" class="result-section hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 text-center">Detalle de Costos</h2>
+            <div class="result-item">
+                <span>Precio en USD:</span>
+                <span id="displayUsdPrice"></span>
+            </div>
+            <div class="result-item">
+                <span>Tipo de Cambio (USD/ARS):</span>
+                <span id="exchangeRate"></span>
+            </div>
+            <div class="result-item">
+                <span>Subtotal en ARS:</span>
+                <span id="subtotalArs"></span>
+            </div>
+            <div class="result-item">
+                <span>IVA (21%):</span>
+                <span id="ivaAmount"></span>
+            </div>
+            <div class="result-item">
+                <span>Percepción AFIP (28.5%):</span>
+                <span id="afipPerceptionAmount"></span>
+            </div>
+            <div class="result-item total-result">
+                <span><strong>Precio Final en ARS:</strong></span>
+                <span id="totalArs"></span>
+            </div>
+        </div>
+
+        <p class="disclaimer">
+            *Nota: Este cálculo incluye el IVA (21%) y la Percepción de AFIP (28.5% sobre el monto total). Las regulaciones fiscales pueden variar y este cálculo es solo una guía. El tipo de cambio se obtiene de una API pública y se actualiza diariamente.
+        </p>
+    </div>
+
+    <script>
+        // Variables globales para la configuración de Firebase (si se usara en el futuro)
+        // Aunque no se usa Firestore en este ejemplo, se mantienen las variables para consistencia.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const usdPriceInput = document.getElementById('usdPrice');
+            const calculateBtn = document.getElementById('calculateBtn');
+            const resultsDiv = document.getElementById('results');
+            const errorMessage = document.getElementById('errorMessage');
+
+            const displayUsdPrice = document.getElementById('displayUsdPrice');
+            const exchangeRateSpan = document.getElementById('exchangeRate');
+            const subtotalArsSpan = document.getElementById('subtotalArs');
+            const ivaAmountSpan = document.getElementById('ivaAmount');
+            const afipPerceptionAmountSpan = document.getElementById('afipPerceptionAmount'); // Nuevo elemento para la percepción AFIP
+            const totalArsSpan = document.getElementById('totalArs');
+
+            // Función para formatear números a moneda argentina
+            const formatCurrency = (value) => {
+                return new Intl.NumberFormat('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }).format(value);
+            };
+
+            // Función para obtener el tipo de cambio del dólar
+            async function getExchangeRate() {
+                try {
+                    // API de ExchangeRate-API (no requiere clave pública para uso básico)
+                    const response = await fetch('https://open.er-api.com/v6/latest/USD');
+                    const data = await response.json();
+                    if (data && data.rates && data.rates.ARS) {
+                        return data.rates.ARS;
+                    } else {
+                        console.error('Error: No se pudo obtener el tipo de cambio de ARS.');
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('Error al obtener el tipo de cambio:', error);
+                    return null;
+                }
+            }
+
+            // Función para calcular el precio final con impuestos
+            async function calculatePrice() {
+                const usdPrice = parseFloat(usdPriceInput.value);
+
+                // Validación de entrada
+                if (isNaN(usdPrice) || usdPrice <= 0) {
+                    errorMessage.classList.remove('hidden');
+                    resultsDiv.classList.add('hidden');
+                    return;
+                } else {
+                    errorMessage.classList.add('hidden');
+                }
+
+                // Obtener el tipo de cambio
+                const rate = await getExchangeRate();
+                if (!rate) {
+                    // Usar un modal o un mensaje en pantalla en lugar de alert()
+                    // Para este ejemplo, se usará un placeholder simple
+                    alert('No se pudo obtener el tipo de cambio actual. Intente de nuevo más tarde.');
+                    return;
+                }
+
+                // Mostrar el precio en USD
+                displayUsdPrice.textContent = new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD'
+                }).format(usdPrice);
+
+                // Mostrar el tipo de cambio
+                exchangeRateSpan.textContent = `1 USD = ${formatCurrency(rate)}`;
+
+                // Calcular subtotal en ARS
+                const subtotalArs = usdPrice * rate;
+                subtotalArsSpan.textContent = formatCurrency(subtotalArs);
+
+                // Calcular IVA (21% sobre el total)
+                const ivaRate = 0.21;
+                const ivaAmount = subtotalArs * ivaRate;
+                ivaAmountSpan.textContent = formatCurrency(ivaAmount);
+
+                // Calcular Percepción AFIP (28.5% sobre el subtotal en ARS)
+                const afipPerceptionRate = 0.285;
+                const afipPerceptionAmount = subtotalArs * afipPerceptionRate;
+                afipPerceptionAmountSpan.textContent = formatCurrency(afipPerceptionAmount);
+
+                // Calcular precio final sumando todos los componentes
+                const totalArs = subtotalArs + ivaAmount + afipPerceptionAmount;
+                totalArsSpan.textContent = formatCurrency(totalArs);
+
+                // Mostrar la sección de resultados
+                resultsDiv.classList.remove('hidden');
+            }
+
+            // Asignar el evento al botón de calcular
+            calculateBtn.addEventListener('click', calculatePrice);
+
+            // Permitir calcular también con la tecla Enter en el campo de entrada
+            usdPriceInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    calculatePrice();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
