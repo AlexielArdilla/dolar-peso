@@ -1,4 +1,4 @@
-# Calculadora de precio en pesos de producto ccomprado en dólares
+# Calculadora de precio en pesos de producto comprado en dólares
 
 ## URL: https://alexielardilla.github.io/dolar-peso/
 
